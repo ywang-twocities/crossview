@@ -15,14 +15,14 @@ from streetview import (
 CSV_PATH = r"C:\Users\2715439W\Projects\crossview\results\histo_val.csv"
 BASE_OUTPUT_DIR = r"C:\Users\2715439W\Projects\crossview\data"
 
-START_ROW = 25
-END_ROW = 30
+START_ROW = 1
+END_ROW = None # None is for no limit, set to a small number for testing
 
 ZOOM = 1
-SLEEP_MIN = 1
+SLEEP_MIN = 2
 SLEEP_MAX = 3
 
-FAILED_LOG_PATH = Path(BASE_OUTPUT_DIR) / "failed_log.txt"
+FAILED_LOG_PATH = BASE_OUTPUT_DIR / "failed_log.txt"
 
 
 def ensure_dirs(base_dir: Path) -> dict:
@@ -77,7 +77,8 @@ def log_failure(row_index: int, row: dict, error: Exception) -> None:
             f"{repr(error)}\n"
         )
 
-def get_panorama_with_retry(pano_id, zoom=1, retries=3):
+
+def get_panorama_with_retry(pano_id: str, zoom: int = ZOOM, retries: int = 3):
     last_error = None
     for attempt in range(1, retries + 1):
         try:
@@ -89,6 +90,7 @@ def get_panorama_with_retry(pano_id, zoom=1, retries=3):
             print(f"Waiting {wait_time:.2f}s before retry...")
             time.sleep(wait_time)
     raise last_error
+
 
 def process_one_row(row: dict, out_dirs: dict, row_index: int) -> str:
     image_id = row["id"].strip()
@@ -109,7 +111,7 @@ def process_one_row(row: dict, out_dirs: dict, row_index: int) -> str:
 
     print(f"[{row_index}] Processing: {image_id} | pano_id={pano_id} | date={date_str}")
 
-    img_raw = get_panorama_with_retry(pano_id, zoom=ZOOM)
+    img_raw = get_panorama_with_retry(pano_id, zoom=ZOOM, retries=3)
     img_raw.save(paths["raw"], "JPEG")
 
     img = crop_bottom_and_right_black_border(img_raw)
@@ -128,25 +130,22 @@ def process_one_row(row: dict, out_dirs: dict, row_index: int) -> str:
 
 
 def main() -> None:
-    csv_path = Path(CSV_PATH)
-    base_output_dir = Path(BASE_OUTPUT_DIR)
+    if not CSV_PATH.exists():
+        raise FileNotFoundError(f"CSV file not found: {CSV_PATH}")
 
-    if not csv_path.exists():
-        raise FileNotFoundError(f"CSV file not found: {csv_path}")
-
-    out_dirs = ensure_dirs(base_output_dir)
+    out_dirs = ensure_dirs(BASE_OUTPUT_DIR)
 
     processed = 0
     skipped = 0
     failed = 0
 
-    with csv_path.open("r", encoding="utf-8-sig", newline="") as f:
+    with CSV_PATH.open("r", encoding="utf-8-sig", newline="") as f:
         reader = csv.DictReader(f)
 
         for row_index, row in enumerate(reader, start=1):
             if row_index < START_ROW:
                 continue
-            if row_index > END_ROW:
+            if END_ROW is not None and row_index > END_ROW:
                 break
 
             try:
@@ -165,7 +164,6 @@ def main() -> None:
             time.sleep(sleep_seconds)
 
     print("\nDone.")
-    print(f"Rows tried: {START_ROW} to {END_ROW}")
     print(f"Processed: {processed}")
     print(f"Skipped:   {skipped}")
     print(f"Failed:    {failed}")
