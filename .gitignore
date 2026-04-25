@@ -8,6 +8,7 @@ venv/
 
 data/
 results/
+models/
 
 .DS_Store
 Thumbs.db
